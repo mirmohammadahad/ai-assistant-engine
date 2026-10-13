@@ -3,15 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Assistant Engine - Phase 1.2</title>
-    <!-- Tailwind CSS CDN -->
+    <title>AI Document Assistant</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-900 text-white flex flex-col h-screen">
 
     <!-- Header -->
     <header class="p-4 bg-gray-800 flex justify-between items-center border-b border-gray-700">
-        <h1 class="text-xl font-bold">🤖 Intelligent AI Assistant</h1>
+        <h1 class="text-xl font-bold">🤖 AI Document & Chat Assistant</h1>
         <a href="/?action=clear" class="bg-red-600 hover:bg-red-700 text-xs px-3 py-2 rounded font-semibold transition">
             Clear Chat Memory
         </a>
@@ -20,12 +19,10 @@
     <!-- Chat Log Window -->
     <div id="chat-box" class="flex-1 overflow-y-auto p-4 space-y-4">
         
-        <!-- Welcome Message -->
         <div class="bg-gray-800 p-3 rounded-lg max-w-md">
-            <strong>AI:</strong> হ্যালো! আমি আপনার স্মার্ট AI Assistant। আমি আপনার আগের মেসেজগুলো মনে রাখতে পারি। কীভাবে সাহায্য করতে পারি?
+            <strong>AI:</strong> হ্যালো i am ahad ! আপনি চাইলে এখন যেকোনো PDF ফাইল আপলোড করে সে সম্পর্কে আমাকে প্রশ্ন করতে পারেন।
         </div>
 
-        <!-- Render Session Chat History -->
         {% for msg in chat_history %}
             {% if msg.role == 'user' %}
                 <div class="flex justify-end">
@@ -42,15 +39,24 @@
 
     </div>
 
-    <!-- Input Form -->
+    <!-- Input Form with File Upload -->
     <div class="p-4 bg-gray-800 border-t border-gray-700">
-        <form id="chat-form" class="flex gap-2">
+        <form id="chat-form" enctype="multipart/form-data" class="flex flex-col gap-2">
             {% csrf_token %}
-            <input type="text" id="user-input" placeholder="আপনার প্রশ্ন লিখুন..." 
-                   class="flex-1 p-3 rounded-lg bg-gray-700 text-white focus:outline-none border border-gray-600 focus:border-blue-500" required>
-            <button type="submit" class="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-lg font-semibold transition">
-                পাঠান
-            </button>
+            <div class="flex items-center gap-2">
+                <label class="bg-gray-700 hover:bg-gray-600 px-3 py-2 rounded-lg cursor-pointer text-xs border border-gray-600 transition">
+                    📁 PDF ফাইল দিন
+                    <input type="file" id="pdf-file" name="pdf_file" accept=".pdf" class="hidden">
+                </label>
+                <span id="file-name" class="text-xs text-gray-400 truncate max-w-xs">কোনো ফাইল সিলেক্ট করা হয়নি</span>
+            </div>
+            <div class="flex gap-2">
+                <input type="text" id="user-input" name="message" placeholder="আপনার প্রশ্ন লিখুন..." 
+                       class="flex-1 p-3 rounded-lg bg-gray-700 text-white focus:outline-none border border-gray-600 focus:border-blue-500">
+                <button type="submit" class="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-lg font-semibold transition">
+                    পাঠান
+                </button>
+            </div>
         </form>
     </div>
 
@@ -58,39 +64,58 @@
         const chatForm = document.getElementById('chat-form');
         const chatBox = document.getElementById('chat-box');
         const userInput = document.getElementById('user-input');
+        const pdfFile = document.getElementById('pdf-file');
+        const fileNameSpan = document.getElementById('file-name');
 
-        // Scroll to bottom automatically
+        pdfFile.addEventListener('change', () => {
+            if (pdfFile.files.length > 0) {
+                fileNameSpan.textContent = pdfFile.files[0].name;
+            } else {
+                fileNameSpan.textContent = "কোনো ফাইল সিলেক্ট করা হয়নি";
+            }
+        });
+
         chatBox.scrollTop = chatBox.scrollHeight;
 
         chatForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const message = userInput.value.trim();
-            if (!message) return;
+            const file = pdfFile.files[0];
 
-            // User Message UI তে যোগ করা
+            if (!message && !file) return;
+
+            let displayMsg = message;
+            if (file) {
+                displayMsg = `[PDF: ${file.name}] ${message}`;
+            }
+
             chatBox.innerHTML += `
                 <div class="flex justify-end">
                     <div class="bg-blue-600 p-3 rounded-lg max-w-md text-right">
-                        <strong>আপনি:</strong> ${message}
+                        <strong>আপনি:</strong> ${displayMsg}
                     </div>
                 </div>
             `;
             userInput.value = '';
             chatBox.scrollTop = chatBox.scrollHeight;
 
-            // Loading Indicator
             const loadingId = 'loading-' + Date.now();
             chatBox.innerHTML += `
                 <div id="${loadingId}" class="bg-gray-800 p-3 rounded-lg max-w-md text-gray-400">
-                    <em>AI চিন্তা করছে...</em>
+                    <em>AI ডকুমেন্ট বিশ্লেষণ করছে...</em>
                 </div>
             `;
             chatBox.scrollTop = chatBox.scrollHeight;
 
-            // Django Backend-এ POST Request পাঠানো
-            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            // CSRF Token নেওয়া
+            const csrfTokenElement = document.querySelector('[name=csrfmiddlewaretoken]');
+            const csrfToken = csrfTokenElement ? csrfTokenElement.value : '';
+
             const formData = new FormData();
             formData.append('message', message);
+            if (file) {
+                formData.append('pdf_file', file);
+            }
 
             try {
                 const res = await fetch('/', {
@@ -123,6 +148,9 @@
                     </div>
                 `;
             }
+
+            pdfFile.value = '';
+            fileNameSpan.textContent = "কোনো ফাইল সিলেক্ট করা হয়নি";
             chatBox.scrollTop = chatBox.scrollHeight;
         });
     </script>
