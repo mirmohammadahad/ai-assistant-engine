@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Assistant Engine - Phase 1.2</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white flex flex-col h-screen">
+
+    <!-- Header -->
+    <header class="p-4 bg-gray-800 flex justify-between items-center border-b border-gray-700">
+        <h1 class="text-xl font-bold">🤖 Intelligent AI Assistant</h1>
+        <a href="/?action=clear" class="bg-red-600 hover:bg-red-700 text-xs px-3 py-2 rounded font-semibold transition">
+            Clear Chat Memory
+        </a>
+    </header>
+
+    <!-- Chat Log Window -->
+    <div id="chat-box" class="flex-1 overflow-y-auto p-4 space-y-4">
+        
+        <!-- Welcome Message -->
+        <div class="bg-gray-800 p-3 rounded-lg max-w-md">
+            <strong>AI:</strong> হ্যালো! আমি আপনার স্মার্ট AI Assistant। আমি আপনার আগের মেসেজগুলো মনে রাখতে পারি। কীভাবে সাহায্য করতে পারি?
+        </div>
+
+        <!-- Render Session Chat History -->
+        {% for msg in chat_history %}
+            {% if msg.role == 'user' %}
+                <div class="flex justify-end">
+                    <div class="bg-blue-600 p-3 rounded-lg max-w-md text-right">
+                        <strong>আপনি:</strong> {{ msg.text }}
+                    </div>
+                </div>
+            {% else %}
+                <div class="bg-gray-800 p-3 rounded-lg max-w-md">
+                    <strong>AI:</strong> {{ msg.text }}
+                </div>
+            {% endif %}
+        {% endfor %}
+
+    </div>
+
+    <!-- Input Form -->
+    <div class="p-4 bg-gray-800 border-t border-gray-700">
+        <form id="chat-form" class="flex gap-2">
+            {% csrf_token %}
+            <input type="text" id="user-input" placeholder="আপনার প্রশ্ন লিখুন..." 
+                   class="flex-1 p-3 rounded-lg bg-gray-700 text-white focus:outline-none border border-gray-600 focus:border-blue-500" required>
+            <button type="submit" class="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-lg font-semibold transition">
+                পাঠান
+            </button>
+        </form>
+    </div>
+
+    <script>
+        const chatForm = document.getElementById('chat-form');
+        const chatBox = document.getElementById('chat-box');
+        const userInput = document.getElementById('user-input');
+
+        // Scroll to bottom automatically
+        chatBox.scrollTop = chatBox.scrollHeight;
+
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const message = userInput.value.trim();
+            if (!message) return;
+
+            // User Message UI তে যোগ করা
+            chatBox.innerHTML += `
+                <div class="flex justify-end">
+                    <div class="bg-blue-600 p-3 rounded-lg max-w-md text-right">
+                        <strong>আপনি:</strong> ${message}
+                    </div>
+                </div>
+            `;
+            userInput.value = '';
+            chatBox.scrollTop = chatBox.scrollHeight;
+
+            // Loading Indicator
+            const loadingId = 'loading-' + Date.now();
+            chatBox.innerHTML += `
+                <div id="${loadingId}" class="bg-gray-800 p-3 rounded-lg max-w-md text-gray-400">
+                    <em>AI চিন্তা করছে...</em>
+                </div>
+            `;
+            chatBox.scrollTop = chatBox.scrollHeight;
+
+            // Django Backend-এ POST Request পাঠানো
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            const formData = new FormData();
+            formData.append('message', message);
+
+            try {
+                const res = await fetch('/', {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': csrfToken },
+                    body: formData
+                });
+                const data = await res.json();
+                
+                document.getElementById(loadingId).remove();
+
+                if (data.reply) {
+                    chatBox.innerHTML += `
+                        <div class="bg-gray-800 p-3 rounded-lg max-w-md">
+                            <strong>AI:</strong> ${data.reply}
+                        </div>
+                    `;
+                } else {
+                    chatBox.innerHTML += `
+                        <div class="bg-red-800 p-3 rounded-lg max-w-md">
+                            <strong>ত্রুটি:</strong> ${data.error}
+                        </div>
+                    `;
+                }
+            } catch (err) {
+                document.getElementById(loadingId).remove();
+                chatBox.innerHTML += `
+                    <div class="bg-red-800 p-3 rounded-lg max-w-md">
+                        <strong>ত্রুটি:</strong> সার্ভারে সমস্যা হয়েছে।
+                    </div>
+                `;
+            }
+            chatBox.scrollTop = chatBox.scrollHeight;
+        });
+    </script>
+</body>
+</html>
